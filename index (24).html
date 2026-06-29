@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>English Reader</title>
+<style>
+:root{
+  --bg: #f5f2eb;
+  --panel: #ffffff;
+  --text: #1a1a1a;
+  --muted: #888;
+  --accent: #2a7a4b;
+  --accent-soft: #e6f4ec;
+  --border: #e0dbd0;
+  --radius: 14px;
+  --serif: Georgia, "Palatino Linotype", serif;
+}
+[data-theme="dark"]{
+  --bg: #141618;
+  --panel: #1c1f22;
+  --text: #e8e4dc;
+  --muted: #888;
+  --accent: #5dba80;
+  --accent-soft: #1a2e22;
+  --border: #2a2d32;
+}
+*{ box-sizing: border-box; margin: 0; padding: 0; }
+body{ background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", sans-serif; transition: background .2s, color .2s; }
+
+.app{ max-width: 720px; margin: 0 auto; padding: 16px 16px 60px; }
+
+/* ── topbar ── */
+.topbar{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.topbar h1{ font-size: 17px; font-weight: 700; letter-spacing: -.2px; }
+.top-actions{ display: flex; gap: 8px; }
+.icon-btn{
+  width: 36px; height: 36px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--panel);
+  color: var(--text); font-size: 15px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover{ border-color: var(--accent); }
+
+/* ── views ── */
+.view{ display: none; }
+.view.active{ display: block; }
+
+/* ── cards ── */
+.card{ background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+.card + .card{ margin-top: 12px; }
+.card-label{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 10px; }
+
+/* ── input ── */
+textarea{
+  width: 100%; min-height: 200px; padding: 12px;
+  font-size: 15px; line-height: 1.55; resize: vertical;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg); color: var(--text); font-family: inherit;
+}
+textarea:focus{ outline: none; border-color: var(--accent); }
+
+.row{ display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.btn{
+  border: none; border-radius: 10px; padding: 11px 18px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: opacity .15s, transform .1s;
+}
+.btn:active{ transform: scale(.97); }
+.btn-primary{ background: var(--accent); color: #fff; flex: 1; }
+.btn-secondary{ background: transparent; border: 1px solid var(--border); color: var(--text); }
+.btn-secondary:hover{ border-color: var(--accent); }
+input[type="file"]{ display: none; }
+
+/* ── library ── */
+.lib-section-label{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 20px 0 8px; }
+.lib-item{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); cursor: pointer; margin-top: 8px;
+}
+.lib-item:hover{ border-color: var(--accent); }
+.lib-title{ font-weight: 600; font-size: 14px; }
+.lib-sub{ font-size: 12px; color: var(--muted); margin-top: 2px; }
+.lib-del{ background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer; padding: 2px 6px; }
+.lib-del:hover{ color: #c0392b; }
+
+/* ── reader toolbar ── */
+.reader-bar{ display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.reader-bar .left{ display: flex; gap: 8px; }
+.font-ctrl{ display: flex; align-items: center; gap: 2px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 3px; }
+.font-ctrl button{ background: none; border: none; color: var(--text); width: 30px; height: 30px; border-radius: 7px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.font-ctrl button:hover{ background: var(--accent-soft); }
+
+/* ── progress ── */
+.prog-wrap{ margin-bottom: 14px; }
+.prog-label{ display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.prog-track{ height: 6px; background: var(--border); border-radius: 4px; overflow: hidden; }
+.prog-fill{ height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+
+/* ── reading card ── */
+.reading-card{ background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 26px; }
+
+/* ── sentence block ── */
+.sent-block{ margin-bottom: 1.4em; }
+
+/* Русская строка (крупная) */
+.ru-line{
+  font-family: var(--serif);
+  font-size: var(--ru-size, 22px);
+  line-height: 1.65;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+/* Английская строка (мелкая) */
+.en-line{
+  font-family: var(--serif);
+  font-size: var(--en-size, 14px);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* Когда предложение полностью известно — показываем только английский, крупно */
+.sent-block.fully-known .ru-line{ display: none; }
+.sent-block.fully-known .en-line{ font-size: var(--ru-size, 22px); color: var(--text); }
+
+/* Каждое английское слово кликабельно */
+.ew{
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 1px;
+  transition: background .12s, color .12s;
+}
+.ew:hover{ background: var(--accent-soft); color: var(--accent); }
+
+/* Уже известное слово — зелёное, клик снимает */
+.ew.known{
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.ew.known:hover{ text-decoration: line-through; background: var(--accent-soft); }
+
+/* Предложение ещё не переведено — placeholder */
+.sent-loading{ color: var(--muted); font-style: italic; font-size: 14px; margin-bottom: 1.4em; }
+
+/* ── words view ── */
+.words-list{ display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.word-chip{
+  display: inline-flex; align-items: center; gap: 5px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 5px 10px; font-size: 13px;
+}
+.word-chip button{ background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+.word-chip button:hover{ color: #c0392b; }
+
+/* ── error banner ── */
+.err-banner{
+  position: fixed; top: 10px; left: 10px; right: 10px; z-index: 90;
+  background: #c0392b; color: #fff; border-radius: 10px;
+  padding: 11px 15px; font-size: 13px; line-height: 1.4; text-align: center;
+  box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+
+/* ── confirm modal ── */
+.modal-overlay{
+  position: fixed; inset: 0; z-index: 70;
+  background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-box{ background: var(--panel); border-radius: 14px; padding: 20px; max-width: 300px; text-align: center; }
+.modal-box p{ font-size: 15px; line-height: 1.5; margin-bottom: 16px; }
+.modal-row{ display: flex; gap: 10px; }
+
+footer{ text-align: center; font-size: 12px; color: var(--muted); margin-top: 18px; }
+@media(max-width:480px){ .reading-card{ padding: 18px 14px; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- HOME -->
+<div class="view active" id="v-home">
+  <div class="topbar">
+    <h1>📖 English Reader</h1>
+    <div class="top-actions">
+      <button class="icon-btn" id="themeBtn">🌙</button>
+      <button class="icon-btn" id="wordsBtn">📚</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-label">Новый текст</div>
+    <textarea id="inputText" placeholder="Вставь текст на английском…"></textarea>
+    <div class="row">
+      <button class="btn btn-primary" id="buildBtn">Открыть для чтения</button>
+      <button class="btn btn-secondary" id="fileBtn">📂 .txt</button>
+      <input type="file" id="fileInput" accept=".txt">
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5;">
+      Вверху — крупный русский перевод, внизу — мелкий английский оригинал.<br>
+      Кликни на английское слово — оно запомнится как известное и исчезнет из перевода. Клик ещё раз — забыть слово.
+    </p>
+  </div>
+  <div id="library"></div>
+  <footer>Тексты и слова хранятся в этом браузере</footer>
+</div>
+
+<!-- READER -->
+<div class="view" id="v-reader">
+  <div class="reader-bar">
+    <div class="left">
+      <button class="icon-btn" id="backBtn">←</button>
+      <div class="font-ctrl">
+        <button id="fontMinus">A−</button>
+        <button id="fontPlus">A+</button>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button class="icon-btn" id="themeBtn2">🌙</button>
+      <button class="icon-btn" id="wordsBtn2">📚</button>
+      <button class="icon-btn" id="delBtn" style="color:#c0392b" title="Удалить текст">🗑</button>
+    </div>
+  </div>
+  <div class="prog-wrap">
+    <div class="prog-label"><span id="progTxt">0% слов известно</span><span id="progCount"></span></div>
+    <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  </div>
+  <div class="reading-card" id="readingCard"></div>
+</div>
+
+<!-- WORDS -->
+<div class="view" id="v-words">
+  <div class="topbar">
+    <h1>📚 Известные слова</h1>
+    <button class="icon-btn" id="closeWordsBtn">✕</button>
+  </div>
+  <div class="card">
+    <div class="card-label" id="wordsCount">0 слов</div>
+    <div class="words-list" id="wordsList"></div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+/* ─────────────────────────────────────────────
+   ХРАНИЛИЩЕ
+───────────────────────────────────────────── */
+const LS = {
+  known:   "er_known_v3",    // { "english_word": true }
+  texts:   "er_texts_v3",    // [{id, title, raw, createdAt}]
+  scache:  "er_scache_v3",   // { "en_sentence": "ru_translation" }
+  theme:   "er_theme_v1",
+  font:    "er_font_v3",
+};
+
+let known   = JSON.parse(localStorage.getItem(LS.known)  || "{}");
+let texts   = JSON.parse(localStorage.getItem(LS.texts)  || "[]");
+let scache  = JSON.parse(localStorage.getItem(LS.scache) || "{}");
+
+const save = {
+  known:  () => localStorage.setItem(LS.known,  JSON.stringify(known)),
+  texts:  () => localStorage.setItem(LS.texts,  JSON.stringify(texts)),
+  scache: () => localStorage.setItem(LS.scache, JSON.stringify(scache)),
+};
+
+/* ─────────────────────────────────────────────
+   ТЕМА
+───────────────────────────────────────────── */
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  localStorage.setItem(LS.theme, t);
+  const icon = t === "dark" ? "☀️" : "🌙";
+  document.getElementById("themeBtn").textContent  = icon;
+  document.getElementById("themeBtn2").textContent = icon;
+}
+function toggleTheme(){
+  applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+}
+applyTheme(localStorage.getItem(LS.theme) || "light");
+document.getElementById("themeBtn").onclick  = toggleTheme;
+document.getElementById("themeBtn2").onclick = toggleTheme;
+
+/* ─────────────────────────────────────────────
+   РАЗМЕР ШРИФТА
+───────────────────────────────────────────── */
+let ruSize = parseInt(localStorage.getItem(LS.font) || "22", 10);
+function applyFont(){
+  const card = document.getElementById("readingCard");
+  card.style.setProperty("--ru-size", ruSize + "px");
+  card.style.setProperty("--en-size", Math.round(ruSize * 0.64) + "px");
+  localStorage.setItem(LS.font, ruSize);
+}
+document.getElementById("fontPlus").onclick  = () => { ruSize = Math.min(ruSize + 2, 36); applyFont(); };
+document.getElementById("fontMinus").onclick = () => { ruSize = Math.max(ruSize - 2, 14); applyFont(); };
+
+/* ─────────────────────────────────────────────
+   НАВИГАЦИЯ
+───────────────────────────────────────────── */
+let prevView = "v-home";
+function showView(id){
+  document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+document.getElementById("backBtn").onclick = () => { renderLibrary(); showView("v-home"); };
+document.getElementById("wordsBtn").onclick = () => { prevView = "v-home"; renderWords(); showView("v-words"); };
+document.getElementById("wordsBtn2").onclick= () => { prevView = "v-reader"; renderWords(); showView("v-words"); };
+document.getElementById("closeWordsBtn").onclick = () => showView(prevView);
+
+/* ─────────────────────────────────────────────
+   ЗАГРУЗКА ФАЙЛА
+───────────────────────────────────────────── */
+document.getElementById("fileBtn").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => { document.getElementById("inputText").value = ev.target.result; };
+  r.readAsText(f, "UTF-8");
+};
+
+/* ─────────────────────────────────────────────
+   БИБЛИОТЕКА
+───────────────────────────────────────────── */
+function renderLibrary(){
+  const el = document.getElementById("library");
+  if (!texts.length){ el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="lib-section-label">Мои тексты</div>`;
+  texts.slice().reverse().forEach(t => {
+    const d = document.createElement("div");
+    d.className = "lib-item";
+    const wc = t.raw.split(/\s+/).filter(Boolean).length;
+    d.innerHTML = `
+      <div style="flex:1" onclick="openText('${t.id}')">
+        <div class="lib-title">${esc(t.title)}</div>
+        <div class="lib-sub">${wc} слов · ${new Date(t.createdAt).toLocaleDateString("ru-RU")}</div>
+      </div>
+      <button class="lib-del" onclick="deleteText(event,'${t.id}')">🗑</button>`;
+    el.appendChild(d);
+  });
+}
+function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function deleteText(e, id){
+  e.stopPropagation();
+  showConfirm("Удалить текст без возможности восстановления?", () => {
+    texts = texts.filter(t => t.id !== id);
+    save.texts();
+    renderLibrary();
+  });
+}
+renderLibrary();
+
+/* ─────────────────────────────────────────────
+   СОЗДАНИЕ / ОТКРЫТИЕ ТЕКСТА
+───────────────────────────────────────────── */
+document.getElementById("buildBtn").onclick = () => {
+  const raw = document.getElementById("inputText").value.trim();
+  if (!raw) return;
+  const title = raw.split(/\s+/).slice(0, 6).join(" ") + "…";
+  const id = "t" + Date.now();
+  texts.push({ id, title, raw, createdAt: Date.now() });
+  save.texts();
+  document.getElementById("inputText").value = "";
+  openText(id);
+};
+
+let currentId = null;
+function openText(id){
+  const t = texts.find(t => t.id === id);
+  if (!t) return;
+  currentId = id;
+  showView("v-reader");
+  applyFont();
+  buildReader(t.raw);
+}
+
+document.getElementById("delBtn").onclick = () => {
+  showConfirm("Удалить этот текст из памяти браузера?", () => {
+    texts = texts.filter(t => t.id !== currentId);
+    save.texts();
+    renderLibrary();
+    showView("v-home");
+  });
+};
+
+/* ─────────────────────────────────────────────
+   РАЗБИВКА НА ПРЕДЛОЖЕНИЯ
+───────────────────────────────────────────── */
+const ABBR = /\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|vs|etc|e\.g|i\.e|a\.m|p\.m|U\.S|U\.K)\./g;
+const MARK = "\u0001";
+
+function splitSentences(text){
+  const p = text.replace(ABBR, m => m.replace(".", MARK))
+                .replace(/(\d)\.(\d)/g, (_, a, b) => a + MARK + b);
+  return (p.match(/[^.!?]*[.!?]+(?:["')\]]*)|[^.!?]+$/gs) || [])
+    .map(s => s.replaceAll(MARK, "."))
+    .filter(s => s.trim());
+}
+
+/* ─────────────────────────────────────────────
+   ТОКЕНИЗАЦИЯ АНГЛИЙСКИХ СЛОВ
+───────────────────────────────────────────── */
+function tokensEn(text){
+  // чередование: слово / не-слово; это позволяет точно восстановить оригинал из токенов
+  return text.match(/[A-Za-z']+|[^A-Za-z']+/g) || [];
+}
+function cleanWord(t){ return t.toLowerCase().replace(/^'+|'+$/g, ""); }
+function enWords(sent){ return tokensEn(sent).filter(t => /^[A-Za-z']+$/.test(t)).map(cleanWord).filter(Boolean); }
+
+/* ─────────────────────────────────────────────
+   ПЕРЕВОД (цепочка из нескольких сервисов)
+───────────────────────────────────────────── */
+async function fetchT(url){
+  // Таймаут через Promise.race — не используем AbortController, он не клонируется
+  // в некоторых сетевых прокси-расширениях браузера.
+  const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 5000));
+  return Promise.race([fetch(url), timeout]);
+}
+
+async function trGoogle(text){
+  const r = await fetchT(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ru&dt=t&q=${encodeURIComponent(text)}`);
+  if (!r.ok) throw new Error("google " + r.status);
+  const d = await r.json();
+  return d[0].map(x => x[0]).join("");
+}
+async function trMyMemory(text){
+  const q = text.length > 480 ? text.slice(0, 480) : text;
+  const r = await fetchT(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=en|ru`);
+  if (!r.ok) throw new Error("mymemory " + r.status);
+  const d = await r.json();
+  if (!d.responseData?.translatedText) throw new Error("mymemory empty");
+  return d.responseData.translatedText;
+}
+async function trLingva(text, host){
+  const r = await fetchT(`https://${host}/api/v1/en/ru/${encodeURIComponent(text)}`);
+  if (!r.ok) throw new Error("lingva " + r.status);
+  const d = await r.json();
+  if (!d.translation) throw new Error("lingva empty");
+  return d.translation;
+}
+
+const TRANSLATORS = [
+  t => trGoogle(t),
+  t => trMyMemory(t),
+  t => trLingva(t, "lingva.ml"),
+  t => trLingva(t, "lingva.thedaviddelta.com"),
+];
+
+let errShown = false;
+function showErr(){
+  if (errShown) return; errShown = true;
+  const b = document.createElement("div");
+  b.className = "err-banner";
+  b.textContent = "⚠️ Не удалось связаться с переводчиком. Текст показан без перевода — попробуй обновить страницу.";
+  document.body.appendChild(b);
+  setTimeout(() => { b.remove(); errShown = false; }, 8000);
+}
+
+async function translate(text){
+  if (scache[text] !== undefined) return scache[text];
+  const trimmed = text.trim();
+  if (!trimmed || !enWords(trimmed).length){ scache[text] = text; return text; }
+  for (const fn of TRANSLATORS){
+    try{
+      const ru = await fn(trimmed);
+      scache[text] = ru; save.scache(); return ru;
+    } catch(e){ console.warn("Translator failed:", e.message); }
+  }
+  showErr();
+  scache[text] = text; return text; // fallback: показать оригинал
+}
+
+/* ─────────────────────────────────────────────
+   ПОСТРОЕНИЕ РИДЕРА
+───────────────────────────────────────────── */
+let sentences = []; // [{raw, words:[...]}]
+
+function buildReader(raw){
+  sentences = splitSentences(raw).map(s => ({ raw: s, words: enWords(s) }));
+  renderReader();
+  hydrate();
+}
+
+function renderReader(){
+  const card = document.getElementById("readingCard");
+  let html = "";
+  let total = 0, knownCount = 0;
+
+  sentences.forEach((sent, si) => {
+    const ws = sent.words;
+    total += ws.length;
+    const kn = ws.filter(w => known[w]).length;
+    knownCount += kn;
+    const fullyKnown = ws.length > 0 && kn === ws.length;
+
+    const ru = scache[sent.raw];
+    const ruLine = ru !== undefined
+      ? `<div class="ru-line">${esc(ru)}</div>`
+      : `<div class="ru-line" style="color:var(--muted);font-style:italic;font-size:14px">переводится…</div>`;
+
+    // Английская строка: каждое слово-токен кликабельно
+    const enTokens = tokensEn(sent.raw);
+    let enHtml = "";
+    enTokens.forEach(tok => {
+      if (!/^[A-Za-z']+$/.test(tok)){
+        enHtml += esc(tok); return;
+      }
+      const w = cleanWord(tok);
+      const isK = !!known[w];
+      enHtml += `<span class="ew${isK ? " known" : ""}" data-w="${esc(w)}" onclick="toggleWord('${esc(w).replace(/'/g,"\\'")}',${si})">${esc(tok)}</span>`;
+    });
+
+    html += `<div class="sent-block${fullyKnown ? " fully-known" : ""}" data-si="${si}">
+      ${fullyKnown ? "" : ruLine}
+      <div class="en-line">${enHtml}</div>
+    </div>`;
+  });
+
+  card.innerHTML = html;
+  updateProgress(total, knownCount);
+}
+
+function updateProgress(total, knownCount){
+  const pct = total ? Math.round(knownCount / total * 100) : 0;
+  document.getElementById("progFill").style.width = pct + "%";
+  document.getElementById("progTxt").textContent = pct + "% слов известно";
+  document.getElementById("progCount").textContent = `${knownCount} / ${total}`;
+}
+
+async function hydrate(){
+  // переводим предложения батчами по 5
+  const todo = sentences.filter(s => scache[s.raw] === undefined && s.words.length > 0);
+  const BATCH = 5;
+  for (let i = 0; i < todo.length; i += BATCH){
+    await Promise.all(todo.slice(i, i + BATCH).map(s => translate(s.raw)));
+    renderReader();
+  }
+}
+
+/* ─────────────────────────────────────────────
+   КЛИК ПО АНГЛИЙСКОМУ СЛОВУ
+───────────────────────────────────────────── */
+function toggleWord(word, si){
+  if (known[word]){
+    delete known[word];
+  } else {
+    known[word] = true;
+  }
+  save.known();
+  renderReader();
+}
+
+/* ─────────────────────────────────────────────
+   ЭКРАН СЛОВАРЯ
+───────────────────────────────────────────── */
+function renderWords(){
+  const list = Object.keys(known).sort();
+  document.getElementById("wordsCount").textContent = list.length + " слов известно";
+  const container = document.getElementById("wordsList");
+  if (!list.length){
+    container.innerHTML = `<p style="color:var(--muted);font-size:14px">Пока нет — кликай на английские слова во время чтения.</p>`;
+    return;
+  }
+  container.innerHTML = list.map(w =>
+    `<span class="word-chip">${esc(w)}<button onclick="forgetWord('${esc(w).replace(/'/g,"\\'")}')">✕</button></span>`
+  ).join("");
+}
+function forgetWord(w){
+  delete known[w];
+  save.known();
+  renderWords();
+  // если открыт ридер — обновим
+  if (document.getElementById("v-reader").classList.contains("active")) renderReader();
+}
+
+/* ─────────────────────────────────────────────
+   МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ
+───────────────────────────────────────────── */
+function showConfirm(msg, onOk){
+  const ov = document.createElement("div");
+  ov.className = "modal-overlay";
+  ov.innerHTML = `
+    <div class="modal-box">
+      <p>${esc(msg)}</p>
+      <div class="modal-row">
+        <button class="btn btn-secondary" style="flex:1" id="_mCancel">Отмена</button>
+        <button class="btn" style="flex:1;background:#c0392b;color:#fff" id="_mOk">Удалить</button>
+      </div>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.querySelector("#_mCancel").onclick = () => ov.remove();
+  ov.querySelector("#_mOk").onclick = () => { ov.remove(); onOk(); };
+}
+</script>
+</body>
+</html>
